@@ -37,20 +37,47 @@ const PALETTE = [
 ];
 
 function pickColor(rng) { return PALETTE[Math.floor(rng() * PALETTE.length)]; }
-function pickDiffColor(current, rng) {
-  let c;
-  for (let i = 0; i < 15; i++) {
-    c = pickColor(rng);
-    if (c !== current) return c;
+
+// intensity 1.0=パレット差し替え（明らか）, 0.1=RGB微小シフト（微妙）
+function pickDiffColor(current, rng, intensity = 1.0) {
+  if (intensity >= 0.7) {
+    let c;
+    for (let i = 0; i < 15; i++) {
+      c = pickColor(rng);
+      if (c !== current) return c;
+    }
+    return c;
   }
-  return c;
+  return shiftColor(current, intensity, rng);
+}
+
+function shiftColor(hex, intensity, rng) {
+  if (!hex || hex.length < 7) return hex;
+  let r = parseInt(hex.slice(1, 3), 16) || 0;
+  let g = parseInt(hex.slice(3, 5), 16) || 0;
+  let b = parseInt(hex.slice(5, 7), 16) || 0;
+  // intensity 0.7: ±90, 0.4: ±55, 0.15: ±28
+  const range = Math.round(20 + intensity * 100);
+  // 主に1チャンネルだけシフト（変化を目立たせる方向に）
+  const ch   = Math.floor(rng() * 3);
+  const sign = rng() > 0.5 ? 1 : -1;
+  const delta = sign * (range * 0.6 + rng() * range * 0.4);
+  if      (ch === 0) r = Math.max(0, Math.min(255, Math.round(r + delta)));
+  else if (ch === 1) g = Math.max(0, Math.min(255, Math.round(g + delta)));
+  else               b = Math.max(0, Math.min(255, Math.round(b + delta)));
+  // 他チャンネルも少し
+  const minor = Math.round(range * 0.2);
+  r = Math.max(0, Math.min(255, r + Math.round((rng() - 0.5) * 2 * minor)));
+  g = Math.max(0, Math.min(255, g + Math.round((rng() - 0.5) * 2 * minor)));
+  b = Math.max(0, Math.min(255, b + Math.round((rng() - 0.5) * 2 * minor)));
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
 const TEX = 1024;
 
 // ─── シーン生成メイン ──────────────────────────────────────────
 class SceneGen {
-  generate(worldId, diffCount, stageSeed, diffTier = 3, maxSprites = 0, excludeTypes = []) {
+  generate(worldId, diffCount, stageSeed, diffTier = 3, maxSprites = 0, excludeTypes = [], diffIntensity = 1.0) {
     const rng = makeRng(stageSeed);
     const sprites = WORLD_SPRITES[worldId] || WORLD_SPRITES.school;
     const cap = maxSprites > 0 ? maxSprites : 10 + Math.floor(rng() * 4);
@@ -88,8 +115,8 @@ class SceneGen {
 
     for (const idx of picked) {
       const e    = diffElements[idx];
-      const type = this._pickDiffType(rng, diffTier, excludeTypes);
-      this._applyDiff(e, type, rng);
+      const type = this._pickDiffType(rng, diffTier, excludeTypes, diffIntensity);
+      this._applyDiff(e, type, rng, diffIntensity);
       rects.push(this._hitRect(e));
     }
 
@@ -130,13 +157,18 @@ class SceneGen {
     return result;
   }
 
-  _pickDiffType(rng, diffTier = 3, excludeTypes = []) {
+  _pickDiffType(rng, diffTier = 3, excludeTypes = [], intensity = 1.0) {
     const tiers = [
       ['color', 'size'],
       ['color', 'size', 'color2', 'flip'],
       ['color', 'size', 'flip', 'variant', 'color2', 'expr', 'count'],
     ];
-    const base  = tiers[Math.min(diffTier - 1, 2)];
+    let base = tiers[Math.min(diffTier - 1, 2)];
+    // 低 intensity の時は二択型（flip/variant/expr）を除外
+    // ※常に「明らかな差」になってしまうため
+    if (intensity < 0.5) {
+      base = base.filter(t => !['flip', 'variant', 'expr'].includes(t));
+    }
     const types = base.filter(t => !excludeTypes.includes(t));
     return (types.length ? types : base)[Math.floor(rng() * (types.length || base.length))];
   }
@@ -146,21 +178,34 @@ class SceneGen {
     return { x: e.x - r, y: e.y - r, w: r * 2, h: r * 2 };
   }
 
-  _applyDiff(e, type, rng) {
+  _applyDiff(e, type, rng, intensity = 1.0) {
     const p = e.props;
     switch (type) {
-      case 'color':   p.color   = pickDiffColor(p.color, rng);  break;
-      case 'color2':  p.color2  = pickDiffColor(p.color2, rng); break;
-      case 'size':    p.s       = Math.round(p.s * (rng() > 0.5 ? 0.55 : 1.65)); break;
-      case 'flip':    p.scaleX  = p.scaleX === 1 ? -1 : 1;      break;
-      case 'variant': p.variant = p.variant === 0 ? 1 : 0;      break;
-      case 'remove':  p.visible = false;                         break;
+      case 'color':   p.color   = pickDiffColor(p.color,  rng, intensity); break;
+      case 'color2':  p.color2  = pickDiffColor(p.color2, rng, intensity); break;
+      case 'size': {
+        // intensity 1.0: 0.45x or 1.7x（大）
+        // intensity 0.5: 0.78x or 1.32x（中）
+        // intensity 0.15: 0.93x or 1.10x（小）
+        const range = 0.55 * intensity;
+        const factor = rng() > 0.5 ? (1 - range * 0.95) : (1 + range * 1.25);
+        p.s = Math.max(10, Math.round(p.s * factor));
+        break;
+      }
+      case 'flip':    p.scaleX  = p.scaleX === 1 ? -1 : 1; break;
+      case 'variant': p.variant = p.variant === 0 ? 1 : 0; break;
+      case 'remove':  p.visible = false; break;
       case 'expr':    {
         const exprs = ['happy','sad','surprised','neutral'];
         p.expr = exprs[(exprs.indexOf(p.expr) + 1 + Math.floor(rng()*3)) % 4];
         break;
       }
-      case 'count':   p.count   = Math.max(1, p.count + (rng() > 0.5 ? 2 : -1)); break;
+      case 'count': {
+        // intensity 1.0: ±2〜3, intensity 0.15: ±1
+        const delta = Math.max(1, Math.round(2.5 * intensity));
+        p.count = Math.max(1, p.count + (rng() > 0.5 ? delta : -delta));
+        break;
+      }
     }
   }
 

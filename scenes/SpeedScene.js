@@ -61,7 +61,12 @@ class SpeedScene extends Phaser.Scene {
     const gen  = new SceneGen();
     const diff = Math.floor(this.score / 5) % 5; // 難度を徐々に上げる
     const worldId = WORLDS[Math.min(diff, WORLDS.length-1)].id;
-    const { baseCanvas, diffCanvas, rects } = gen.generate(worldId, 3 + diff, Date.now(), Math.min(diff + 1, 3));
+    // スピードモード：強度は徐々に下がる（最初は明らか, 進むほど微妙）
+    const intensity = Math.max(0.3, 1.0 - this.score / 60);
+    const { baseCanvas, diffCanvas, rects } = gen.generate(
+      worldId, 3 + diff, Date.now(),
+      Math.min(diff + 1, 3), 0, [], intensity
+    );
     this.diffRects = rects;
 
     const bKey = 'sb' + Date.now(), dKey = 'sd' + (Date.now()+1);

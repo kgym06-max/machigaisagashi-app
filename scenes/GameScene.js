@@ -39,7 +39,8 @@ class GameScene extends Phaser.Scene {
     const gen  = new SceneGen();
     const seed = this.stageNum * 9999 + (Date.now() % 1000);
     const { baseCanvas, diffCanvas, rects } = gen.generate(
-      cfg.world.id, cfg.diffCount, seed, cfg.diffTier, cfg.maxSprites, this.excludeDiffTypes
+      cfg.world.id, cfg.diffCount, seed,
+      cfg.diffTier, cfg.maxSprites, this.excludeDiffTypes, cfg.diffIntensity
     );
     this.diffRects     = rects;
     this._rawDiffCanvas = diffCanvas;
