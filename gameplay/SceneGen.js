@@ -1,23 +1,24 @@
-// ─── 世界観ごとの使用スプライト定義 ──────────────────────────
+// ─── 世界観ごとの使用スプライト定義（多様化）─────────────────
 const WORLD_SPRITES = {
-  school:   ['person','person','book','book','chair','tree','bird','flower','person','book','chair','flower','bird','tree'],
-  aquarium: ['fish','fish','fish','jellyfish','coral','jellyfish','fish','fish','coral','jellyfish','fish','coral','jellyfish','fish'],
-  park:     ['tree','tree','flower','flower','person','bird','bird','balloon','flower','tree','person','flower','bird','tree'],
-  kitchen:  ['cake','chair','book','person','flower','mushroom','cake','chair','book','cake','mushroom','flower','person','cake'],
-  beach:    ['umbrella','fish','bird','person','flower','umbrella','fish','bird','umbrella','flower','fish','person','umbrella','bird'],
-  forest:   ['tree','tree','mushroom','mushroom','bird','cat','tree','flower','mushroom','tree','bird','flower','cat','mushroom'],
-  city:     ['building','building','person','person','balloon','tree','bird','flower','building','person','balloon','tree','building','bird'],
-  space:    ['planet','planet','star','star','rocket','moon','star','planet','star','rocket','moon','planet','star','rocket'],
-  festival: ['lantern','lantern','person','person','balloon','balloon','lantern','tree','person','lantern','balloon','flower','lantern','person'],
-  fantasy:  ['mushroom','tree','star','planet','flower','cat','moon','balloon','mushroom','star','flower','cat','tree','moon'],
+  school:   ['person','person','adult','book','book','chair','tree','bird','flower','person','book','chair','flower','bird','hat','cup','plate','sun','balloon','person'],
+  aquarium: ['fish','fish','fish','jellyfish','coral','jellyfish','fish','fish','coral','jellyfish','fish','coral','jellyfish','fish','star','fish','coral'],
+  park:     ['tree','tree','flower','flower','person','bird','bird','balloon','flower','tree','person','flower','bird','dog','cat','rabbit','sun','hat','person','flower'],
+  kitchen:  ['cake','chair','book','person','plate','cup','cake','chair','plate','cup','cake','mushroom','flower','person','adult','cup','plate','cake','book'],
+  beach:    ['umbrella','fish','bird','person','flower','umbrella','fish','bird','umbrella','flower','fish','person','umbrella','bird','sun','hat','cup','plate','balloon'],
+  forest:   ['tree','tree','mushroom','mushroom','bird','cat','tree','flower','mushroom','tree','bird','flower','cat','mushroom','rabbit','dog','flower','tree'],
+  city:     ['building','building','person','person','balloon','tree','bird','flower','building','person','balloon','tree','building','bird','adult','dog','cup','hat'],
+  space:    ['planet','planet','star','star','rocket','moon','star','planet','star','rocket','moon','planet','star','rocket','star','planet','moon'],
+  festival: ['lantern','lantern','person','person','balloon','balloon','lantern','tree','person','lantern','balloon','flower','lantern','person','hat','cup','plate','adult','cake'],
+  fantasy:  ['mushroom','tree','star','planet','flower','cat','moon','balloon','mushroom','star','flower','cat','tree','moon','rabbit','sun','star'],
 };
 
 // スプライトのデフォルトサイズ
 const SPRITE_BASE_S = {
-  person:40, cat:38, bird:28, fish:35, jellyfish:38, tree:45,
-  flower:30, mushroom:34, building:55, planet:42, rocket:40,
-  lantern:36, cake:38, star:28, moon:36, umbrella:50, coral:36,
-  balloon:32, chair:36, book:30,
+  person:48, adult:56, cat:42, dog:46, rabbit:42, bird:32,
+  fish:38, jellyfish:42, tree:54, flower:34, mushroom:38,
+  building:64, planet:46, rocket:44, lantern:40, cake:42,
+  star:30, moon:40, umbrella:54, coral:40, balloon:36,
+  chair:40, book:34, plate:42, cup:32, sun:46, hat:34,
 };
 
 function makeRng(seed) {
@@ -80,7 +81,7 @@ class SceneGen {
   generate(worldId, diffCount, stageSeed, diffTier = 3, maxSprites = 0, excludeTypes = [], diffIntensity = 1.0) {
     const rng = makeRng(stageSeed);
     const sprites = WORLD_SPRITES[worldId] || WORLD_SPRITES.school;
-    const cap = maxSprites > 0 ? maxSprites : 10 + Math.floor(rng() * 4);
+    const cap = maxSprites > 0 ? maxSprites : 14 + Math.floor(rng() * 6);
     const n = Math.min(sprites.length, cap);
 
     // 要素をグリッド配置（均一に散らす）
@@ -129,10 +130,14 @@ class SceneGen {
   }
 
   _gridPositions(n, rng) {
-    // キャンバスを仮想グリッドで分割してランダム配置
-    const cols = Math.ceil(Math.sqrt(n));
+    // 適応的なグリッド：スプライト数に応じて列数を調整
+    const cols = n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : 5;
     const rows = Math.ceil(n / cols);
-    const cellW = TEX / cols, cellH = (TEX * 0.65) / rows;
+    const cellW = TEX / cols;
+    // 上部に余白（背景）、下部いっぱいまで使う
+    const topMargin = TEX * 0.22;
+    const useH     = TEX * 0.66;
+    const cellH    = useH / rows;
     const result = [];
     const order = Array.from({ length: cols * rows }, (_, i) => i)
       .sort(() => rng() - 0.5)
@@ -140,8 +145,8 @@ class SceneGen {
     for (const idx of order) {
       const col = idx % cols, row = Math.floor(idx / cols);
       result.push({
-        x: cellW * col + cellW * (0.25 + rng() * 0.5),
-        y: TEX * 0.28 + cellH * row + cellH * (0.25 + rng() * 0.5),
+        x: cellW * col + cellW * (0.20 + rng() * 0.60),
+        y: topMargin + cellH * row + cellH * (0.30 + rng() * 0.40),
       });
     }
     return result;
