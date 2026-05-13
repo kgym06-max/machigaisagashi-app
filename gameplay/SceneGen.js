@@ -50,7 +50,7 @@ const TEX = 1024;
 
 // ─── シーン生成メイン ──────────────────────────────────────────
 class SceneGen {
-  generate(worldId, diffCount, stageSeed, diffTier = 3, maxSprites = 0) {
+  generate(worldId, diffCount, stageSeed, diffTier = 3, maxSprites = 0, excludeTypes = []) {
     const rng = makeRng(stageSeed);
     const sprites = WORLD_SPRITES[worldId] || WORLD_SPRITES.school;
     const cap = maxSprites > 0 ? maxSprites : 7 + Math.floor(rng() * 3);
@@ -88,7 +88,7 @@ class SceneGen {
 
     for (const idx of picked) {
       const e    = diffElements[idx];
-      const type = this._pickDiffType(rng, diffTier);
+      const type = this._pickDiffType(rng, diffTier, excludeTypes);
       this._applyDiff(e, type, rng);
       rects.push(this._hitRect(e));
     }
@@ -128,14 +128,20 @@ class SceneGen {
     return result;
   }
 
-  _pickDiffType(rng, diffTier = 3) {
+  _pickDiffType(rng, diffTier = 3, excludeTypes = []) {
     const tiers = [
       ['color', 'size'],
       ['color', 'size', 'color2', 'flip'],
       ['color', 'size', 'flip', 'variant', 'color2', 'expr', 'count'],
     ];
-    const types = tiers[Math.min(diffTier - 1, 2)];
-    return types[Math.floor(rng() * types.length)];
+    const base  = tiers[Math.min(diffTier - 1, 2)];
+    const types = base.filter(t => !excludeTypes.includes(t));
+    return (types.length ? types : base)[Math.floor(rng() * (types.length || base.length))];
+  }
+
+  _hitRect(e) {
+    const r = (e.props.s || 36) * 1.1;
+    return { x: e.x - r, y: e.y - r, w: r * 2, h: r * 2 };
   }
 
   _applyDiff(e, type, rng) {
@@ -156,10 +162,6 @@ class SceneGen {
     }
   }
 
-  _hitRect(e) {
-    const r = (e.props.s || 36) * 0.65;
-    return { x: e.x - r, y: e.y - r, w: r * 2, h: r * 2 };
-  }
 
   _render(elements, world) {
     const cv  = document.createElement('canvas');

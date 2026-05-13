@@ -12,11 +12,12 @@ class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
 
   init(data) {
-    this.stageNum  = data.stageNum || 1;
-    this.gameMode  = data.mode     || 'stage';
-    this.roundNum  = data.round    || 1;
-    this.pd        = PlayerData.load();
-    this.cfg       = getStageConfig(this.stageNum);
+    this.stageNum       = data.stageNum       || 1;
+    this.gameMode       = data.mode           || 'stage';
+    this.roundNum       = data.round          || 1;
+    this.excludeDiffTypes = data.excludeDiffTypes || [];
+    this.pd             = PlayerData.load();
+    this.cfg            = getStageConfig(this.stageNum);
   }
 
   create() {
@@ -37,9 +38,10 @@ class GameScene extends Phaser.Scene {
     const gen  = new SceneGen();
     const seed = this.stageNum * 9999 + (Date.now() % 1000);
     const { baseCanvas, diffCanvas, rects } = gen.generate(
-      cfg.world.id, cfg.diffCount, seed, cfg.diffTier, cfg.maxSprites
+      cfg.world.id, cfg.diffCount, seed, cfg.diffTier, cfg.maxSprites, this.excludeDiffTypes
     );
-    this.diffRects  = rects;
+    this.diffRects     = rects;
+    this._rawDiffCanvas = diffCanvas;
     this.totalDiffs = rects.length;
 
     const bKey = 'b' + Date.now(), dKey = 'd' + (Date.now()+1);
@@ -129,9 +131,10 @@ class GameScene extends Phaser.Scene {
     this._buildResult(W, H);
     this.resultContainer.setVisible(false);
 
-    if (this.stageNum === 1) {
-      this.time.delayedCall(300, () => this._showTutorial());
-    }
+    // 虫眼鏡（ステージモードのみ）
+    if (this.gameMode === 'stage') this._setupLoupe();
+
+    if (this.stageNum === 1) this._showTutorial();
   }
 
   _onTap(lx, ly) {
@@ -370,37 +373,111 @@ class GameScene extends Phaser.Scene {
   // ─── チュートリアル（ステージ1）────────────────────────────
   _showTutorial() {
     const W = this.scale.width, H = this.scale.height;
-    const overlay = this.add.container(0, 0);
+    const overlay = this.add.container(0, 0).setDepth(15);
 
-    const dim = this.add.rectangle(W/2, H/2, W, H, 0x000000, 0.75);
-    const box  = this.add.rectangle(W/2, H/2, W - 20, 220, 0x0f3460, 0.97);
+    const dim  = this.add.rectangle(W/2, H/2, W, H, 0x000000, 0.80);
+    const box  = this.add.rectangle(W/2, H/2, W - 20, 260, 0x0f3460, 0.97);
     box.setStrokeStyle(2, 0x4488cc);
 
     const lines = [
-      '👆 下の絵をタップしてみよう！',
-      '2枚の絵を見比べて、',
+      '下の絵をタップしてみよう！',
+      '2枚の絵を見比べて',
       '違う箇所を見つけよう。',
       '',
-      '上の絵はオリジナル。',
-      '下の絵に間違いがあるよ。',
-      '見つけたら円で囲われます。',
+      '上：オリジナル',
+      '下：まちがいを探せ！',
+      '',
+      '🔍 虫眼鏡ボタンで拡大できるよ',
     ];
-    let ty = H/2 - 90;
+    const textObjs = [];
+    let ty = H/2 - 108;
     for (const l of lines) {
-      this.add.text(W/2, ty, l, {
+      const t = this.add.text(W/2, ty, l, {
         fontSize:'16px', fontFamily:'sans-serif', color:'#ffffff', align:'center',
       }).setOrigin(0.5);
+      textObjs.push(t);
       ty += 26;
     }
 
-    const okBtn = this.add.rectangle(W/2, H/2 + 92, 200, 44, 0x2980b9)
+    const okBtn = this.add.rectangle(W/2, H/2 + 108, 200, 44, 0x2980b9)
       .setInteractive({ useHandCursor:true });
-    this.add.text(W/2, H/2 + 92, 'はじめる！', {
+    const okTxt = this.add.text(W/2, H/2 + 108, 'はじめる！', {
       fontSize:'18px', fontFamily:'sans-serif', color:'#ffffff',
     }).setOrigin(0.5);
 
-    overlay.add([dim, box, okBtn]);
-    overlay.setDepth(10);
+    overlay.add([dim, box, ...textObjs, okBtn, okTxt]);
     okBtn.on('pointerdown', () => overlay.destroy());
+  }
+
+  // ─── 虫眼鏡ルーペ ─────────────────────────────────────────
+  _setupLoupe() {
+    const W = this.scale.width, H = this.scale.height;
+    this._loupeActive = false;
+    const gc = this.sys.game.canvas;
+
+    const loupeCv = document.createElement('canvas');
+    loupeCv.width = 180; loupeCv.height = 180;
+    Object.assign(loupeCv.style, {
+      position:'fixed', borderRadius:'50%',
+      border:'3px solid #ffffff',
+      boxShadow:'0 2px 14px rgba(0,0,0,0.7)',
+      pointerEvents:'none', display:'none', zIndex:'1000',
+    });
+    document.body.appendChild(loupeCv);
+    this._loupeCv  = loupeCv;
+    this._loupeCtx = loupeCv.getContext('2d');
+    this.events.once('shutdown', () => loupeCv.remove());
+    this.events.once('destroy',  () => loupeCv.remove());
+
+    const btn = this.add.text(W - 12, H - 38, '🔍', {
+      fontSize:'28px', fontFamily:'sans-serif',
+    }).setOrigin(1, 0.5).setInteractive({ useHandCursor:true }).setAlpha(0.5);
+    btn.on('pointerdown', () => {
+      this._loupeActive = !this._loupeActive;
+      btn.setAlpha(this._loupeActive ? 1 : 0.5);
+      if (!this._loupeActive) loupeCv.style.display = 'none';
+    });
+
+    this.input.on('pointermove', (ptr) => {
+      if (!this._loupeActive || this.gameOver) return;
+      const lpx = ptr.x - PX, lpy = ptr.y - BOT_Y;
+      if (lpx >= 0 && lpx <= PANEL_SIZE && lpy >= 0 && lpy <= PANEL_SIZE) {
+        this._renderLoupe(ptr.x, ptr.y, lpx, lpy, gc);
+      } else {
+        loupeCv.style.display = 'none';
+      }
+    });
+    this.input.on('pointerup', () => {
+      if (this._loupeActive) loupeCv.style.display = 'none';
+    });
+  }
+
+  _renderLoupe(worldX, worldY, lpx, lpy, gc) {
+    const rect   = gc.getBoundingClientRect();
+    const scaleX = rect.width  / this.scale.width;
+    const scaleY = rect.height / this.scale.height;
+    const lSize  = 180;
+    const sx = rect.left + worldX * scaleX;
+    const sy = rect.top  + worldY * scaleY;
+
+    this._loupeCv.style.left = (sx - lSize / 2) + 'px';
+    this._loupeCv.style.top  = (sy - lSize - 100) + 'px';
+    this._loupeCv.style.display = 'block';
+
+    const tx   = lpx / PANEL_SCALE;
+    const ty   = lpy / PANEL_SCALE;
+    const srcR = 55;
+    const ctx  = this._loupeCtx;
+    ctx.clearRect(0, 0, lSize, lSize);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(lSize / 2, lSize / 2, lSize / 2, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(
+      this._rawDiffCanvas,
+      Math.max(0, tx - srcR), Math.max(0, ty - srcR), srcR * 2, srcR * 2,
+      0, 0, lSize, lSize
+    );
+    ctx.restore();
   }
 }
