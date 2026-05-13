@@ -1,15 +1,15 @@
 // ─── 世界観ごとの使用スプライト定義 ──────────────────────────
 const WORLD_SPRITES = {
-  school:   ['person','person','book','book','chair','tree','bird','flower'],
-  aquarium: ['fish','fish','fish','jellyfish','coral','jellyfish','fish','fish'],
-  park:     ['tree','tree','flower','flower','person','bird','bird','balloon'],
-  kitchen:  ['cake','chair','book','person','flower','mushroom','cake','chair'],
-  beach:    ['umbrella','fish','bird','person','flower','umbrella','fish','bird'],
-  forest:   ['tree','tree','mushroom','mushroom','bird','cat','tree','flower'],
-  city:     ['building','building','person','person','car','balloon','tree','bird'],
-  space:    ['planet','planet','star','star','rocket','moon','star','planet'],
-  festival: ['lantern','lantern','person','person','balloon','balloon','lantern','tree'],
-  fantasy:  ['mushroom','tree','star','planet','flower','cat','moon','balloon'],
+  school:   ['person','person','book','book','chair','tree','bird','flower','person','book','chair','flower','bird','tree'],
+  aquarium: ['fish','fish','fish','jellyfish','coral','jellyfish','fish','fish','coral','jellyfish','fish','coral','jellyfish','fish'],
+  park:     ['tree','tree','flower','flower','person','bird','bird','balloon','flower','tree','person','flower','bird','tree'],
+  kitchen:  ['cake','chair','book','person','flower','mushroom','cake','chair','book','cake','mushroom','flower','person','cake'],
+  beach:    ['umbrella','fish','bird','person','flower','umbrella','fish','bird','umbrella','flower','fish','person','umbrella','bird'],
+  forest:   ['tree','tree','mushroom','mushroom','bird','cat','tree','flower','mushroom','tree','bird','flower','cat','mushroom'],
+  city:     ['building','building','person','person','balloon','tree','bird','flower','building','person','balloon','tree','building','bird'],
+  space:    ['planet','planet','star','star','rocket','moon','star','planet','star','rocket','moon','planet','star','rocket'],
+  festival: ['lantern','lantern','person','person','balloon','balloon','lantern','tree','person','lantern','balloon','flower','lantern','person'],
+  fantasy:  ['mushroom','tree','star','planet','flower','cat','moon','balloon','mushroom','star','flower','cat','tree','moon'],
 };
 
 // スプライトのデフォルトサイズ
@@ -53,7 +53,7 @@ class SceneGen {
   generate(worldId, diffCount, stageSeed, diffTier = 3, maxSprites = 0, excludeTypes = []) {
     const rng = makeRng(stageSeed);
     const sprites = WORLD_SPRITES[worldId] || WORLD_SPRITES.school;
-    const cap = maxSprites > 0 ? maxSprites : 7 + Math.floor(rng() * 3);
+    const cap = maxSprites > 0 ? maxSprites : 10 + Math.floor(rng() * 4);
     const n = Math.min(sprites.length, cap);
 
     // 要素をグリッド配置（均一に散らす）
@@ -94,8 +94,10 @@ class SceneGen {
     }
 
     const world    = WORLDS.find(w => w.id === worldId) || WORLDS[0];
-    const baseCanvas = this._render(elements,     world);
-    const diffCanvas = this._render(diffElements, world);
+    // 背景は両パネル同一にする（同じシードで描画）
+    const bgSeed = stageSeed;
+    const baseCanvas = this._render(elements,     world, bgSeed);
+    const diffCanvas = this._render(diffElements, world, bgSeed);
     return { baseCanvas, diffCanvas, rects };
   }
 
@@ -163,14 +165,14 @@ class SceneGen {
   }
 
 
-  _render(elements, world) {
+  _render(elements, world, bgSeed = 0) {
     const cv  = document.createElement('canvas');
     cv.width  = TEX;
     cv.height = TEX;
     const ctx = cv.getContext('2d');
 
-    // 背景
-    this._drawBg(ctx, world);
+    // 背景（シード固定で両パネル一致）
+    this._drawBg(ctx, world, makeRng(bgSeed));
 
     // 要素描画
     for (const e of elements) {
@@ -188,52 +190,99 @@ class SceneGen {
     return cv;
   }
 
-  _drawBg(ctx, world) {
-    // 空
+  _drawBg(ctx, world, bgRng) {
+    const rng = bgRng || (() => Math.random());
+
+    // 空（シードで色をわずかに変化）
     const skyGrad = ctx.createLinearGradient(0, 0, 0, TEX * 0.6);
     skyGrad.addColorStop(0, world.bg);
     skyGrad.addColorStop(1, world.bg + 'aa');
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, TEX, TEX * 0.92);
 
-    // 地面
+    // 地面（バリエーションあり）
     ctx.fillStyle = world.ground;
     ctx.fillRect(0, TEX * 0.82, TEX, TEX * 0.18);
 
-    // 装飾（雲や星など）
-    if (['school','park','beach','city'].includes(world.id)) {
-      this._drawClouds(ctx, world.bg);
+    // 地面に芝の点描
+    ctx.fillStyle = world.ground;
+    for (let i = 0; i < 30; i++) {
+      const x = rng() * TEX;
+      const y = TEX * 0.82 + rng() * (TEX * 0.18);
+      ctx.fillRect(x, y, 6 + rng() * 8, 2);
+    }
+
+    // 装飾（世界別）
+    if (['school','park','beach','city','kitchen'].includes(world.id)) {
+      this._drawClouds(ctx, rng);
     }
     if (['space','fantasy'].includes(world.id)) {
-      this._drawStars(ctx);
+      this._drawStars(ctx, rng);
     }
     if (world.id === 'aquarium') {
-      // 水泡
-      ctx.fillStyle = '#ffffff22';
-      [[80,100],[200,180],[340,120],[460,200]].forEach(([x,y]) => {
-        for (let i = 0; i < 5; i++) {
-          ctx.beginPath(); ctx.arc(x+i*8, y+i*12, 4+i*2, 0, Math.PI*2); ctx.fill();
-        }
-      });
+      this._drawBubbles(ctx, rng);
+    }
+    if (['forest','festival'].includes(world.id)) {
+      this._drawSparkles(ctx, rng);
+    }
+    if (world.id === 'kitchen') {
+      // タイル風
+      ctx.strokeStyle = '#0000001a';
+      ctx.lineWidth = 1;
+      for (let y = TEX * 0.85; y < TEX; y += 80) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(TEX, y); ctx.stroke();
+      }
     }
   }
 
-  _drawClouds(ctx, baseColor) {
-    ctx.fillStyle = '#ffffff88';
-    [[80,60,35],[220,40,28],[350,75,40],[460,50,22]].forEach(([x,y,r]) => {
+  _drawClouds(ctx, rng) {
+    ctx.fillStyle = '#ffffffaa';
+    const count = 3 + Math.floor(rng() * 4);
+    for (let i = 0; i < count; i++) {
+      const x = rng() * TEX;
+      const y = 40 + rng() * 200;
+      const r = 30 + rng() * 30;
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(x+r*0.6, y+r*0.2, r*0.75, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(x-r*0.6, y+r*0.2, r*0.6, 0, Math.PI*2); ctx.fill();
-    });
+      ctx.beginPath(); ctx.arc(x + r*0.7, y + r*0.2, r*0.75, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x - r*0.6, y + r*0.2, r*0.6, 0, Math.PI*2); ctx.fill();
+    }
   }
 
-  _drawStars(ctx) {
-    ctx.fillStyle = '#ffffffcc';
-    for (let i = 0; i < 40; i++) {
-      const x = (i * 137.5) % TEX;
-      const y = (i * 89.3) % (TEX * 0.7);
-      const r = 1 + (i % 3);
+  _drawStars(ctx, rng) {
+    const count = 50 + Math.floor(rng() * 30);
+    for (let i = 0; i < count; i++) {
+      const x = rng() * TEX;
+      const y = rng() * (TEX * 0.75);
+      const r = 1 + Math.floor(rng() * 3);
+      ctx.fillStyle = rng() > 0.7 ? '#ffeeaa' : '#ffffffcc';
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  _drawBubbles(ctx, rng) {
+    ctx.fillStyle = '#ffffff33';
+    const count = 6 + Math.floor(rng() * 6);
+    for (let i = 0; i < count; i++) {
+      const x = rng() * TEX;
+      const y = rng() * (TEX * 0.8);
+      const r = 4 + rng() * 14;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  _drawSparkles(ctx, rng) {
+    const count = 20 + Math.floor(rng() * 15);
+    for (let i = 0; i < count; i++) {
+      const x = rng() * TEX;
+      const y = rng() * (TEX * 0.8);
+      const s = 3 + rng() * 4;
+      ctx.fillStyle = '#fff7c044';
+      ctx.beginPath();
+      ctx.moveTo(x, y - s); ctx.lineTo(x + s*0.4, y - s*0.4);
+      ctx.lineTo(x + s, y); ctx.lineTo(x + s*0.4, y + s*0.4);
+      ctx.lineTo(x, y + s); ctx.lineTo(x - s*0.4, y + s*0.4);
+      ctx.lineTo(x - s, y); ctx.lineTo(x - s*0.4, y - s*0.4);
+      ctx.closePath(); ctx.fill();
     }
   }
 }

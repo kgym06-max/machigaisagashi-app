@@ -168,7 +168,20 @@ class GameScene extends Phaser.Scene {
     this.missCount++;
     if (this.gameMode === 'stage') {
       const ht = this.heartTexts[this.missCount - 1];
-      if (ht) ht.setAlpha(0.15);
+      if (ht) {
+        // ハートが割れるアニメ：拡大→透過
+        this.tweens.add({
+          targets: ht, scaleX: 1.5, scaleY: 1.5,
+          duration: 120, ease: 'Quad.Out', yoyo: false,
+          onComplete: () => {
+            ht.setText('♡').setColor('#660000');
+            this.tweens.add({
+              targets: ht, scaleX: 1, scaleY: 1, alpha: 0.25,
+              duration: 180, ease: 'Quad.In',
+            });
+          },
+        });
+      }
     }
     this._flash(0xff0000, 0.45);
     if (this.gameMode === 'stage' && this.missCount >= this.missLimit) {
