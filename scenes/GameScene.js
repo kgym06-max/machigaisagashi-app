@@ -266,22 +266,27 @@ class GameScene extends Phaser.Scene {
     }
 
     // ボタン
-    const nextCfg = getStageConfig(this.stageNum + 1);
     const nextAvail = this.stageNum < 100;
     const nextBtn = this._rBtn(0, 50, nextAvail ? '次のステージ →' : 'クリア！', 0x27ae60,
       () => {
         if (nextAvail) this.scene.start('Game', { stageNum: this.stageNum+1, mode:'stage' });
         else this.scene.start('Home');
       });
+    const ansBtn  = this._rBtn(0, 50, '答えを見る', 0xb84800,
+      () => this._reviewAnswers());
     const retryBtn = this._rBtn(0, 115, 'もう一度', 0x1565c0,
       () => this.scene.restart({ stageNum: this.stageNum, mode: this.gameMode }));
     const menuBtn  = this._rBtn(0, 175, '← 選択に戻る', 0x333344,
       () => this.scene.start(this.gameMode === 'rankMatch' ? 'RankMatch' : 'StageSelect'));
 
+    this._rNextBtn = nextBtn;
+    this._rAnsBtn  = ansBtn;
+
     this.resultContainer.add([
       bg, this._rTitle, this._rWorld, this._rTime, this._rScore,
       ...this._rStars,
-      nextBtn.bg, nextBtn.t, retryBtn.bg, retryBtn.t, menuBtn.bg, menuBtn.t,
+      nextBtn.bg, nextBtn.t, ansBtn.bg, ansBtn.t,
+      retryBtn.bg, retryBtn.t, menuBtn.bg, menuBtn.t,
     ]);
   }
 
@@ -307,6 +312,12 @@ class GameScene extends Phaser.Scene {
     this._rTime.setText(`クリアタイム: ${m}:${s.toString().padStart(2,'0')}`);
     this._rScore.setText(`発見: ${this.foundCount} / ${this.totalDiffs}　ミス: ${this.missCount}`);
 
+    const isGameOver = stars === 0;
+    this._rNextBtn.bg.setVisible(!isGameOver);
+    this._rNextBtn.t.setVisible(!isGameOver);
+    this._rAnsBtn.bg.setVisible(isGameOver);
+    this._rAnsBtn.t.setVisible(isGameOver);
+
     this._rStars.forEach((st, i) => st.setColor(i < stars ? '#ffdd00':'#333333').setScale(0));
     this.resultContainer.setVisible(true);
     this._rStars.forEach((st, i) => {
@@ -316,6 +327,41 @@ class GameScene extends Phaser.Scene {
           delay: 200 + i*180, duration:280, ease:'Back.Out',
         });
       }
+    });
+  }
+
+  _reviewAnswers() {
+    this.resultContainer.setVisible(false);
+
+    const ansGfx = this.add.graphics().setDepth(4);
+    for (let i = 0; i < this.diffRects.length; i++) {
+      if (this._foundSet.has(i)) continue;
+      const r   = this.diffRects[i];
+      const cx  = PX + (r.x + r.w/2) * PANEL_SCALE;
+      const cyB = BOT_Y + (r.y + r.h/2) * PANEL_SCALE;
+      const cyT = TOP_Y + (r.y + r.h/2) * PANEL_SCALE;
+      const rad = Math.max(r.w, r.h) * PANEL_SCALE * 0.65;
+      ansGfx.lineStyle(3, 0xff4444, 1);
+      ansGfx.strokeCircle(cx, cyB, rad);
+      ansGfx.lineStyle(3, 0xff4444, 0.5);
+      ansGfx.strokeCircle(cx, cyT, rad);
+    }
+
+    const W = this.scale.width, H = this.scale.height;
+    const label = this.add.text(W/2, BOT_Y - 20, '← 未発見の差分', {
+      fontSize:'13px', fontFamily:'sans-serif', color:'#ff8888',
+    }).setOrigin(0.5).setDepth(5);
+
+    const backBg = this.add.rectangle(W/2, H - 38, 220, 44, 0x333344)
+      .setInteractive({ useHandCursor:true }).setDepth(5);
+    backBg.setStrokeStyle(1, 0x888888);
+    const backT = this.add.text(W/2, H - 38, '結果に戻る', {
+      fontSize:'16px', fontFamily:'sans-serif', color:'#ffffff',
+    }).setOrigin(0.5).setDepth(5);
+
+    backBg.on('pointerdown', () => {
+      ansGfx.destroy(); backBg.destroy(); backT.destroy(); label.destroy();
+      this.resultContainer.setVisible(true);
     });
   }
 

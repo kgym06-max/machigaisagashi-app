@@ -59,7 +59,7 @@ function calcRankRP(totalSec, missCount, found, total) {
   return Math.max(0, timeRP - missDeduct + accBonus);
 }
 
-const DIFF_TYPES = ['color','size','flip','remove','variant','position','expression','count'];
+const DIFF_TYPES = ['color','size','flip','variant','expression','count'];
 const SPEED_INTERVAL_MS = 5000;
 const RANK_MATCH_ROUNDS  = 3;
 const MISS_PENALTY_SEC   = 15;

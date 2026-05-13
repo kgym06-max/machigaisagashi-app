@@ -128,7 +128,7 @@ class SceneGen {
   }
 
   _pickDiffType(rng) {
-    const types = ['color','size','flip','remove','variant','color2','expr','count'];
+    const types = ['color','size','flip','variant','color2','expr','count'];
     return types[Math.floor(rng() * types.length)];
   }
 
