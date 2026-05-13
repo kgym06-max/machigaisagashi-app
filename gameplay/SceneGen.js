@@ -50,10 +50,11 @@ const TEX = 1024;
 
 // ─── シーン生成メイン ──────────────────────────────────────────
 class SceneGen {
-  generate(worldId, diffCount, stageSeed) {
+  generate(worldId, diffCount, stageSeed, diffTier = 3, maxSprites = 0) {
     const rng = makeRng(stageSeed);
     const sprites = WORLD_SPRITES[worldId] || WORLD_SPRITES.school;
-    const n = Math.min(sprites.length, 7 + Math.floor(rng() * 3)); // 7-9要素
+    const cap = maxSprites > 0 ? maxSprites : 7 + Math.floor(rng() * 3);
+    const n = Math.min(sprites.length, cap);
 
     // 要素をグリッド配置（均一に散らす）
     const elements = [];
@@ -87,7 +88,7 @@ class SceneGen {
 
     for (const idx of picked) {
       const e    = diffElements[idx];
-      const type = this._pickDiffType(rng);
+      const type = this._pickDiffType(rng, diffTier);
       this._applyDiff(e, type, rng);
       rects.push(this._hitRect(e));
     }
@@ -127,8 +128,13 @@ class SceneGen {
     return result;
   }
 
-  _pickDiffType(rng) {
-    const types = ['color','size','flip','variant','color2','expr','count'];
+  _pickDiffType(rng, diffTier = 3) {
+    const tiers = [
+      ['color', 'size'],
+      ['color', 'size', 'color2', 'flip'],
+      ['color', 'size', 'flip', 'variant', 'color2', 'expr', 'count'],
+    ];
+    const types = tiers[Math.min(diffTier - 1, 2)];
     return types[Math.floor(rng() * types.length)];
   }
 

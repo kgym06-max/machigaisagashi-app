@@ -17,14 +17,29 @@ function getWorld(stageNum) {
 }
 
 function getStageConfig(n) {
-  const worldIdx = Math.min(Math.floor((n - 1) / 10), 9);
-  const posInWorld = (n - 1) % 10; // 0-9
-  const world = WORLDS[worldIdx];
-  // 難易度スケール：ステージが進むほど差分が増え時間が短くなる
-  const diffCount = n === 1 ? 2 : Math.min(2 + worldIdx + Math.floor(posInWorld / 3), 10);
-  const timeSec   = Math.max(180 - worldIdx * 12 - posInWorld * 2, 60);
+  const worldIdx   = Math.min(Math.floor((n - 1) / 10), 9);
+  const posInWorld = (n - 1) % 10;
+  const world      = WORLDS[worldIdx];
+
+  // 差分数：ゆっくり増加
+  let diffCount;
+  if      (n === 1)  diffCount = 1;
+  else if (n <= 4)   diffCount = 2;
+  else if (n <= 10)  diffCount = 3;
+  else if (n <= 20)  diffCount = 4;
+  else               diffCount = Math.min(4 + worldIdx + Math.floor(posInWorld / 4), 8);
+
+  // 差分タイプ難度（1=色・サイズのみ, 2=+反転/色2, 3=全種類）
+  const diffTier = n <= 10 ? 1 : n <= 30 ? 2 : 3;
+
+  // スプライト数（少ないほど見やすい, 0=最大）
+  const maxSprites = n <= 5 ? 4 : n <= 20 ? 5 : 0;
+
+  // 制限時間：序盤は余裕あり
+  const timeSec = Math.max(240 - worldIdx * 15 - posInWorld * 5, 60);
+
   const isWorldStart = n > 1 && posInWorld === 0;
-  return { n, world, diffCount, timeSec, isWorldStart };
+  return { n, world, diffCount, timeSec, diffTier, maxSprites, isWorldStart };
 }
 
 // ─── ランクシステム ────────────────────────────────────────────

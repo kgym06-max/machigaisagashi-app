@@ -1,8 +1,8 @@
-const PANEL_SIZE  = 325;
+const PANEL_SIZE  = 310;
 const PANEL_SCALE = PANEL_SIZE / 1024;
-const PX          = 38;   // パネル左端 X
-const TOP_Y       = 82;   // 上パネル上端 Y
-const BOT_Y       = 418;  // 下パネル上端 Y
+const PX          = 45;   // パネル左端 X
+const TOP_Y       = 74;   // 上パネル上端 Y
+const BOT_Y       = 396;  // 下パネル上端 Y
 
 // 演出閾値（秒）
 const SPEED_AMAZING = 2;
@@ -36,7 +36,9 @@ class GameScene extends Phaser.Scene {
     // パズル生成
     const gen  = new SceneGen();
     const seed = this.stageNum * 9999 + (Date.now() % 1000);
-    const { baseCanvas, diffCanvas, rects } = gen.generate(cfg.world.id, cfg.diffCount, seed);
+    const { baseCanvas, diffCanvas, rects } = gen.generate(
+      cfg.world.id, cfg.diffCount, seed, cfg.diffTier, cfg.maxSprites
+    );
     this.diffRects  = rects;
     this.totalDiffs = rects.length;
 
