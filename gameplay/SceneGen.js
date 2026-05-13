@@ -46,7 +46,7 @@ function pickDiffColor(current, rng) {
   return c;
 }
 
-const TEX = 512;
+const TEX = 1024;
 
 // ─── シーン生成メイン ──────────────────────────────────────────
 class SceneGen {

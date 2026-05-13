@@ -1,8 +1,8 @@
-const PANEL_SIZE  = 340;
-const PANEL_SCALE = PANEL_SIZE / 512;
-const PX          = 30;   // パネル左端 X
-const TOP_Y       = 65;   // 上パネル上端 Y
-const BOT_Y       = 415;  // 下パネル上端 Y
+const PANEL_SIZE  = 325;
+const PANEL_SCALE = PANEL_SIZE / 1024;
+const PX          = 38;   // パネル左端 X
+const TOP_Y       = 82;   // 上パネル上端 Y
+const BOT_Y       = 418;  // 下パネル上端 Y
 
 // 演出閾値（秒）
 const SPEED_AMAZING = 2;
