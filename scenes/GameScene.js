@@ -166,8 +166,9 @@ class GameScene extends Phaser.Scene {
   _miss() {
     if (this.gameOver) return;
     this.missCount++;
-    if (this.gameMode === 'stage' && this.heartTexts[this.missLimit - this.missCount]) {
-      this.heartTexts[this.missLimit - this.missCount].setColor('#333333');
+    if (this.gameMode === 'stage') {
+      const ht = this.heartTexts[this.missCount - 1];
+      if (ht) ht.setAlpha(0.15);
     }
     this._flash(0xff0000, 0.45);
     if (this.gameMode === 'stage' && this.missCount >= this.missLimit) {
