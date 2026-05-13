@@ -28,17 +28,20 @@ class HomeScene extends Phaser.Scene {
       fontSize:'13px', fontFamily:'sans-serif', color:'#ffdddd',
     }).setOrigin(0, 0.5);
 
-    this.add.text(W - 12, 80, `Stage ${this.pd.maxStageCleared || 0}`, {
+    this.add.text(W - 12, 82, `Stage ${this.pd.maxStageCleared || 0}`, {
       fontSize:'14px', fontFamily:'sans-serif', color:'#ffeeaa',
     }).setOrigin(1, 0.5);
-    this.add.text(W - 12, 98, `★ ${this.pd.totalStars}`, {
+    this.add.text(W - 12, 100, `★ ${this.pd.totalStars}`, {
       fontSize:'13px', fontFamily:'sans-serif', color:'#ffe0a0',
     }).setOrigin(1, 0.5);
 
-    const gear = this.add.text(W - 10, 16, '⚙', {
-      fontSize:'22px', fontFamily:'sans-serif', color:'#ffcccc',
-    }).setOrigin(1, 0).setInteractive({ useHandCursor:true });
-    gear.on('pointerdown', () => this.scene.launch('Settings', { caller:'Home' }));
+    // タッチ判定広めの歯車
+    const gearHit = this.add.rectangle(W - 22, 24, 44, 44, 0x000000, 0)
+      .setInteractive({ useHandCursor:true });
+    this.add.text(W - 22, 24, '⚙', {
+      fontSize:'24px', fontFamily:'sans-serif', color:'#ffcccc',
+    }).setOrigin(0.5);
+    gearHit.on('pointerdown', () => this.scene.launch('Settings', { caller:'Home' }));
 
     // ─── メインボタン（ステージ：赤、ランクマッチ：緑）────
     this._bigBtn(W/2, 210, 340, 110, 'ステージ', '100ステージ', 0xc41c00,
@@ -48,8 +51,8 @@ class HomeScene extends Phaser.Scene {
       () => this.scene.start('RankMatch'));
 
     // ─── サブボタン（フレンドマッチ：緑系、スピード：紫）──
-    this._smallBtn(W/2 - 90, 456, 160, 70, 'フレンド\nマッチ', '準備中', 0x1b5e20,
-      () => {});
+    this._smallBtn(W/2 - 90, 456, 160, 70, 'フレンド\nマッチ', '準備中', 0x556655,
+      () => this._showComingSoon());
     this._smallBtn(W/2 + 90, 456, 160, 70, 'スピード\nモード', '1問5秒！', 0x7d3c98,
       () => this.scene.start('Speed'));
 
@@ -86,6 +89,32 @@ class HomeScene extends Phaser.Scene {
     bg.on('pointerover',  () => bg.setAlpha(0.85));
     bg.on('pointerout',   () => bg.setAlpha(1));
     return bg;
+  }
+
+  _showComingSoon() {
+    const W = this.scale.width, H = this.scale.height;
+    const overlay = this.add.container(W/2, H/2).setDepth(20);
+    const dim = this.add.rectangle(-W/2, -H/2, W, H, 0x000000, 0.6)
+      .setOrigin(0, 0).setInteractive();
+    const bg = this.add.rectangle(0, 0, W - 60, 180, 0xffffff, 0.98);
+    bg.setStrokeStyle(2, 0x2e7d32);
+    const t1 = this.add.text(0, -45, '準備中', {
+      fontSize:'22px', fontFamily:'sans-serif', color:'#2e7d32', fontStyle:'bold',
+    }).setOrigin(0.5);
+    const t2 = this.add.text(0, -8,
+      'フレンドマッチは現在開発中です。\n今後のアップデートをお待ちください。', {
+      fontSize:'13px', fontFamily:'sans-serif', color:'#444444',
+      align:'center', lineSpacing:6,
+    }).setOrigin(0.5);
+    const okBg = this.add.rectangle(0, 55, 140, 38, 0x2e7d32)
+      .setInteractive({ useHandCursor:true });
+    const okT  = this.add.text(0, 55, 'OK', {
+      fontSize:'15px', fontFamily:'sans-serif', color:'#ffffff', fontStyle:'bold',
+    }).setOrigin(0.5);
+    const close = () => overlay.destroy();
+    okBg.on('pointerdown', close);
+    dim.on('pointerdown', close);
+    overlay.add([dim, bg, t1, t2, okBg, okT]);
   }
 
   _smallBtn(x, y, w, h, title, sub, col, cb) {

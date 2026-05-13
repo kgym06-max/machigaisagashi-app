@@ -83,8 +83,10 @@ class SettingsScene extends Phaser.Scene {
       fontSize:'16px', fontFamily:'sans-serif', color:'#ffffff',
     }).setOrigin(0.5);
     closeBtn.on('pointerdown', () => {
+      // launchされた場合：scene.stop() で十分（callerは継続中）
+      // それ以外（startで来た場合）：callerに戻る
+      try { this.scene.resume(this.caller); } catch (_) {}
       this.scene.stop();
-      this.scene.resume(this.caller);
     });
   }
 

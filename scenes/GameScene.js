@@ -12,12 +12,13 @@ class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
 
   init(data) {
-    this.stageNum       = data.stageNum       || 1;
-    this.gameMode       = data.mode           || 'stage';
-    this.roundNum       = data.round          || 1;
+    this.stageNum         = data.stageNum         || 1;
+    this.gameMode         = data.mode             || 'stage';
+    this.roundNum         = data.round            || 1;
     this.excludeDiffTypes = data.excludeDiffTypes || [];
-    this.pd             = PlayerData.load();
-    this.cfg            = getStageConfig(this.stageNum);
+    this.allRoundResults  = data.allRoundResults  || [];
+    this.pd               = PlayerData.load();
+    this.cfg              = getStageConfig(this.stageNum);
   }
 
   create() {
@@ -51,11 +52,16 @@ class GameScene extends Phaser.Scene {
     // 背景
     this.add.rectangle(W/2, H/2, W, H, 0x0d0d20);
 
-    // HUDバー
-    this.add.rectangle(W/2, 28, W, 56, 0x0f3460);
+    // HUDバー（ランクマッチは紫系）
+    this.add.rectangle(W/2, 28, W, 56, this.gameMode === 'rankMatch' ? 0x3d0060 : 0x0f3460);
     const worldName = cfg.world.name;
-    this.add.text(10, 28, `${this.stageNum}. ${worldName}`, {
-      fontSize:'14px', fontFamily:'sans-serif', color:'#aaccff', fontStyle:'bold',
+    const hdrLabel  = this.gameMode === 'rankMatch'
+      ? `RANK  Round ${this.roundNum}/${RANK_MATCH_ROUNDS}`
+      : `${this.stageNum}. ${worldName}`;
+    this.add.text(10, 28, hdrLabel, {
+      fontSize:'14px', fontFamily:'sans-serif',
+      color: this.gameMode === 'rankMatch' ? '#ddbbff' : '#aaccff',
+      fontStyle:'bold',
     }).setOrigin(0, 0.5);
 
     this.foundText = this.add.text(W/2, 18, `残り ${this.totalDiffs} 箇所`, {
@@ -94,19 +100,47 @@ class GameScene extends Phaser.Scene {
     // クリックゾーン（下パネルのみ正当）
     const zBot = this.add.zone(PX, BOT_Y, PANEL_SIZE, PANEL_SIZE).setOrigin(0,0);
     zBot.setInteractive({ useHandCursor:true });
-    zBot.on('pointerdown', p => this._onTap(p.x - PX, p.y - BOT_Y));
+    zBot.on('pointerdown', p => {
+      const lx = p.x - PX, ly = p.y - BOT_Y;
+      if (this._loupeActive) {
+        // 虫眼鏡モード：押下時はタップせず、最終位置を覚えておく
+        this._loupeDragging = true;
+        this._loupeLastPos  = { x: lx, y: ly };
+        return;
+      }
+      this._onTap(lx, ly);
+    });
+
+    // 虫眼鏡モードでの離した瞬間のタップ判定
+    this.input.on('pointerup', (p) => {
+      if (this._loupeActive && this._loupeDragging && this._loupeLastPos) {
+        const { x, y } = this._loupeLastPos;
+        if (x >= 0 && x <= PANEL_SIZE && y >= 0 && y <= PANEL_SIZE) {
+          this._onTap(x, y);
+        }
+        this._loupeDragging = false;
+        this._loupeLastPos  = null;
+      }
+    });
 
     const zTop = this.add.zone(PX, TOP_Y, PANEL_SIZE, PANEL_SIZE).setOrigin(0,0);
     zTop.setInteractive({ useHandCursor:true });
-    zTop.on('pointerdown', () => this._miss());
+    zTop.on('pointerdown', () => {
+      if (this._loupeActive) return; // 虫眼鏡時は上のパネルもミス扱いしない
+      this._miss();
+    });
 
-    // 戻るボタン
+    // 戻るボタン（ランクマッチでは確認）
     const back = this.add.text(8, H - 12, '← 戻る', {
       fontSize:'13px', fontFamily:'sans-serif', color:'#556677',
     }).setOrigin(0,1).setInteractive({ useHandCursor:true });
     back.on('pointerdown', () => {
-      this.scene.stop();
-      this.scene.start(this.gameMode === 'rankMatch' ? 'RankMatch' : 'StageSelect');
+      if (this.gameMode === 'rankMatch' && !this.gameOver) {
+        this._confirmAbort();
+      } else {
+        this.scene.stop();
+        this.scene.start(this.gameMode === 'rankMatch' ? 'RankMatch' : 'StageSelect');
+      }
     });
 
     // 演出テキスト
@@ -114,16 +148,19 @@ class GameScene extends Phaser.Scene {
       fontSize:'38px', fontFamily:'sans-serif', color:'#ffff00', fontStyle:'bold',
     }).setOrigin(0.5).setAlpha(0);
 
-    // タイマー（経過時間）
+    // タイマー（経過時間：参考値、色が変わる）
     this.timerEvent = this.time.addEvent({
       delay: 1000, loop: true,
       callback: () => {
-        if (!this.gameOver) {
-          this.elapsedSec++;
-          const m = Math.floor(this.elapsedSec / 60);
-          const s = this.elapsedSec % 60;
-          this.timerText.setText(`${m}:${s.toString().padStart(2,'0')}`);
-        }
+        if (this.gameOver) return;
+        this.elapsedSec++;
+        const m = Math.floor(this.elapsedSec / 60);
+        const s = this.elapsedSec % 60;
+        this.timerText.setText(`${m}:${s.toString().padStart(2,'0')}`);
+        const ratio = this.elapsedSec / cfg.timeSec;
+        this.timerText.setColor(
+          ratio > 1.2 ? '#ff5555' : ratio > 0.8 ? '#ffaa44' : '#aaaacc'
+        );
       },
     });
 
@@ -238,28 +275,121 @@ class GameScene extends Phaser.Scene {
   _endGame() {
     this.gameOver = true;
     this.timerEvent.remove();
+    if (this._loupeCv) this._loupeCv.style.display = 'none';
+
     const found  = this.foundCount, total = this.totalDiffs;
     const ratio  = total > 0 ? found / total : 0;
-    const noMiss = this.missCount === 0;
 
     let stars;
-    if (found >= total)  stars = 3;
-    else if (ratio >= 0.667) stars = 2;
-    else if (ratio >= 0.334) stars = 1;
-    else               stars = 0;
+    if (found >= total)       stars = 3;
+    else if (ratio >= 0.667)  stars = 2;
+    else if (found >= 1)      stars = 1; // 1個でも見つければ1星（次解放）
+    else                      stars = 0;
 
     if (this.gameMode === 'stage') {
-      const res = this.pd.saveStageResult(this.stageNum, stars, this.elapsedSec);
+      this.pd.saveStageResult(this.stageNum, stars, this.elapsedSec);
+      this.time.delayedCall(600, () => this._showResult(stars));
     } else if (this.gameMode === 'rankMatch') {
-      // ランクマッチはResultScene経由でRP計算
+      // ラウンド結果を記録
+      this.allRoundResults.push({
+        timeSec:   this.elapsedSec,
+        missCount: this.missCount,
+        found:     this.foundCount,
+        total:     this.totalDiffs,
+      });
+      if (this.roundNum >= RANK_MATCH_ROUNDS) {
+        // 全ラウンド終了 → 集計
+        this.time.delayedCall(700, () =>
+          this.scene.start('RankResult', { results: this.allRoundResults }));
+      } else {
+        // 次ラウンドへの中間オーバーレイ
+        this.time.delayedCall(700, () => this._showRoundOverlay());
+      }
+    } else {
+      this.time.delayedCall(600, () => this._showResult(stars));
     }
+  }
 
-    this.time.delayedCall(600, () => this._showResult(stars));
+  _confirmAbort() {
+    const W = this.scale.width, H = this.scale.height;
+    const overlay = this.add.container(W/2, H/2).setDepth(25);
+    const dim = this.add.rectangle(-W/2, -H/2, W, H, 0x000000, 0.7)
+      .setOrigin(0,0).setInteractive();
+    const bg  = this.add.rectangle(0, 0, W - 60, 200, 0x1a0a2e, 0.98);
+    bg.setStrokeStyle(2, 0xcc88ff);
+    const t = this.add.text(0, -55,
+      'ランクマッチを中断しますか？\nこのラウンドの記録は消えます。', {
+      fontSize:'14px', fontFamily:'sans-serif', color:'#ffffff',
+      align:'center', lineSpacing:6,
+    }).setOrigin(0.5);
+    const yes = this.add.rectangle(-70, 40, 120, 44, 0x7f0000)
+      .setInteractive({ useHandCursor:true });
+    const yesT = this.add.text(-70, 40, '中断', {
+      fontSize:'15px', fontFamily:'sans-serif', color:'#ff8888',
+    }).setOrigin(0.5);
+    yes.on('pointerdown', () => { this.scene.stop(); this.scene.start('RankMatch'); });
+    const no = this.add.rectangle(70, 40, 120, 44, 0x1a1a3e)
+      .setInteractive({ useHandCursor:true });
+    const noT = this.add.text(70, 40, '続ける', {
+      fontSize:'15px', fontFamily:'sans-serif', color:'#ffffff',
+    }).setOrigin(0.5);
+    no.on('pointerdown', () => overlay.destroy());
+    overlay.add([dim, bg, t, yes, yesT, no, noT]);
+  }
+
+  _showRoundOverlay() {
+    const W = this.scale.width, H = this.scale.height;
+    const overlay = this.add.container(W/2, H/2).setDepth(20);
+
+    const bg = this.add.rectangle(0, 0, W - 40, 300, 0x0f0f2a, 0.97);
+    bg.setStrokeStyle(2, 0x7b1fa2);
+
+    const title = this.add.text(0, -110, `ラウンド ${this.roundNum} 完了！`, {
+      fontSize:'22px', fontFamily:'sans-serif', color:'#cc88ff', fontStyle:'bold',
+    }).setOrigin(0.5);
+
+    const last = this.allRoundResults[this.allRoundResults.length - 1];
+    const penalty = last.missCount * MISS_PENALTY_SEC;
+
+    const t2 = this.add.text(0, -60,
+      `${this.foundCount}/${this.totalDiffs}個 発見　タイム: ${last.timeSec}秒`, {
+      fontSize:'15px', fontFamily:'sans-serif', color:'#ffffff',
+    }).setOrigin(0.5);
+
+    const t3 = this.add.text(0, -32,
+      `ミス: ${last.missCount}回 (+${penalty}秒)`, {
+      fontSize:'13px', fontFamily:'sans-serif', color:'#ff8888',
+    }).setOrigin(0.5);
+
+    const totalSoFar = this.allRoundResults.reduce(
+      (s, r) => s + r.timeSec + r.missCount * MISS_PENALTY_SEC, 0);
+    const t4 = this.add.text(0, -2,
+      `累計タイム: ${totalSoFar}秒`, {
+      fontSize:'17px', fontFamily:'sans-serif', color:'#ffcc44', fontStyle:'bold',
+    }).setOrigin(0.5);
+
+    const nextBtn = this.add.rectangle(0, 75, 260, 52, 0x7b1fa2)
+      .setInteractive({ useHandCursor:true });
+    nextBtn.setStrokeStyle(2, 0xcc88ff);
+    const nextTxt = this.add.text(0, 75, `ラウンド ${this.roundNum + 1} へ →`, {
+      fontSize:'17px', fontFamily:'sans-serif', color:'#ffffff', fontStyle:'bold',
+    }).setOrigin(0.5);
+    nextBtn.on('pointerdown', () => {
+      this.scene.start('Game', {
+        stageNum: 82 + (this.roundNum + 1) * 2,
+        mode: 'rankMatch',
+        round: this.roundNum + 1,
+        allRoundResults: this.allRoundResults,
+        excludeDiffTypes: ['size'],
+      });
+    });
+
+    overlay.add([bg, title, t2, t3, t4, nextBtn, nextTxt]);
   }
 
   // ─── リザルトパネル ────────────────────────────────────────
   _buildResult(W, H) {
-    this.resultContainer = this.add.container(W/2, H/2 + 10);
+    this.resultContainer = this.add.container(W/2, H/2 + 10).setDepth(10);
     const bg = this.add.rectangle(0, 0, 360, 420, 0x08081e, 0.97);
     bg.setStrokeStyle(2, 0x4444aa);
 
@@ -443,12 +573,20 @@ class GameScene extends Phaser.Scene {
     this.events.once('shutdown', () => loupeCv.remove());
     this.events.once('destroy',  () => loupeCv.remove());
 
-    const btn = this.add.text(W - 12, H - 38, '🔍', {
-      fontSize:'28px', fontFamily:'sans-serif',
-    }).setOrigin(1, 0.5).setInteractive({ useHandCursor:true }).setAlpha(0.5);
-    btn.on('pointerdown', () => {
+    const btnBg = this.add.rectangle(W - 28, H - 38, 50, 50, 0x1a1a3e, 0.92)
+      .setInteractive({ useHandCursor:true });
+    btnBg.setStrokeStyle(2, 0x4488cc);
+    const btnIcon = this.add.text(W - 28, H - 38, '🔍', {
+      fontSize:'24px', fontFamily:'sans-serif',
+    }).setOrigin(0.5).setAlpha(0.7);
+    const btnLabel = this.add.text(W - 28, H - 12, '拡大', {
+      fontSize:'10px', fontFamily:'sans-serif', color:'#88aacc',
+    }).setOrigin(0.5);
+    btnBg.on('pointerdown', () => {
       this._loupeActive = !this._loupeActive;
-      btn.setAlpha(this._loupeActive ? 1 : 0.5);
+      btnIcon.setAlpha(this._loupeActive ? 1 : 0.7);
+      btnBg.setFillStyle(this._loupeActive ? 0x2244aa : 0x1a1a3e, 0.92);
+      btnLabel.setText(this._loupeActive ? '拡大ON' : '拡大');
       if (!this._loupeActive) loupeCv.style.display = 'none';
     });
 
@@ -457,6 +595,8 @@ class GameScene extends Phaser.Scene {
       const lpx = ptr.x - PX, lpy = ptr.y - BOT_Y;
       if (lpx >= 0 && lpx <= PANEL_SIZE && lpy >= 0 && lpy <= PANEL_SIZE) {
         this._renderLoupe(ptr.x, ptr.y, lpx, lpy, gc);
+        // ドラッグ中なら最終位置を更新
+        if (this._loupeDragging) this._loupeLastPos = { x: lpx, y: lpy };
       } else {
         loupeCv.style.display = 'none';
       }
@@ -474,13 +614,18 @@ class GameScene extends Phaser.Scene {
     const sx = rect.left + worldX * scaleX;
     const sy = rect.top  + worldY * scaleY;
 
-    this._loupeCv.style.left = (sx - lSize / 2) + 'px';
-    this._loupeCv.style.top  = (sy - lSize - 100) + 'px';
+    // 画面端でクランプ
+    const winW = window.innerWidth || document.documentElement.clientWidth;
+    const winH = window.innerHeight || document.documentElement.clientHeight;
+    const left = Math.max(4, Math.min(winW - lSize - 4, sx - lSize / 2));
+    const top  = Math.max(4, Math.min(winH - lSize - 4, sy - lSize - 80));
+    this._loupeCv.style.left = left + 'px';
+    this._loupeCv.style.top  = top  + 'px';
     this._loupeCv.style.display = 'block';
 
     const tx   = lpx / PANEL_SCALE;
     const ty   = lpy / PANEL_SCALE;
-    const srcR = 55;
+    const srcR = 38; // 約2.4倍ズーム
     const ctx  = this._loupeCtx;
     ctx.clearRect(0, 0, lSize, lSize);
     ctx.save();
@@ -493,5 +638,12 @@ class GameScene extends Phaser.Scene {
       0, 0, lSize, lSize
     );
     ctx.restore();
+    // 十字カーソル
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(lSize/2 - 10, lSize/2); ctx.lineTo(lSize/2 + 10, lSize/2);
+    ctx.moveTo(lSize/2, lSize/2 - 10); ctx.lineTo(lSize/2, lSize/2 + 10);
+    ctx.stroke();
   }
 }
