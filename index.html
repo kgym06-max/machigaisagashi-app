@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>某ファミリーレストランの間違い探しを練習するアプリ</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0d0d1a; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden; touch-action:none; }
+  canvas { display:block; }
+</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.88.2/dist/phaser.min.js"></script>
+
+<!-- データ -->
+<script src="data/GameData.js"></script>
+<script src="data/PlayerData.js"></script>
+
+<!-- ゲームプレイ -->
+<script src="gameplay/Drawables.js"></script>
+<script src="gameplay/SceneGen.js"></script>
+
+<!-- シーン -->
+<script src="scenes/HomeScene.js"></script>
+<script src="scenes/StageSelectScene.js"></script>
+<script src="scenes/GameScene.js"></script>
+<script src="scenes/RankMatchScene.js"></script>
+<script src="scenes/SpeedScene.js"></script>
+<script src="scenes/SettingsScene.js"></script>
+
+<script>
+new Phaser.Game({
+  type: Phaser.AUTO,
+  width: 400,
+  height: 780,
+  backgroundColor: '#0d0d1a',
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
+  scene: [
+    HomeScene,
+    StageSelectScene,
+    GameScene,
+    RankMatchScene,
+    RankResultScene,
+    SpeedScene,
+    SettingsScene,
+  ],
+});
+</script>
+</body>
+</html>
