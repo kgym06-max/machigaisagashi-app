@@ -243,6 +243,19 @@ class SceneGen {
   _drawBg(ctx, world, bgRng) {
     const rng = bgRng || (() => Math.random());
 
+    // ── 背景画像があればそれを使う（メイン）──────────────────
+    if (typeof ASSETS !== 'undefined' && ASSETS.bgComposite && typeof getBgSlice === 'function') {
+      const slice = getBgSlice(world.id);
+      if (slice) {
+        ctx.drawImage(slice.img, slice.sx, slice.sy, slice.sw, slice.sh, 0, 0, TEX, TEX);
+        // スプライトを置く下半分を少し明るく（視認性のため薄い白を被せる）
+        ctx.fillStyle = 'rgba(255,255,255,0.10)';
+        ctx.fillRect(0, TEX * 0.30, TEX, TEX * 0.70);
+        return;
+      }
+    }
+
+    // ── フォールバック：procedural描画 ─────────────────────────
     // 空（シードで色をわずかに変化）
     const skyGrad = ctx.createLinearGradient(0, 0, 0, TEX * 0.6);
     skyGrad.addColorStop(0, world.bg);

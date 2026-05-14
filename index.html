@@ -22,6 +22,9 @@
 <script src="data/GameData.js"></script>
 <script src="data/PlayerData.js"></script>
 
+<!-- アセット -->
+<script src="data/Assets.js"></script>
+
 <!-- ゲームプレイ -->
 <script src="gameplay/Drawables.js"></script>
 <script src="gameplay/SceneGen.js"></script>
@@ -35,24 +38,27 @@
 <script src="scenes/SettingsScene.js"></script>
 
 <script>
-new Phaser.Game({
-  type: Phaser.AUTO,
-  width: 400,
-  height: 780,
-  backgroundColor: '#0d0d1a',
-  scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
-  },
-  scene: [
-    HomeScene,
-    StageSelectScene,
-    GameScene,
-    RankMatchScene,
-    RankResultScene,
-    SpeedScene,
-    SettingsScene,
-  ],
+// 背景画像ロード後にゲーム起動（失敗してもフォールバックで起動）
+loadAssets().finally(() => {
+  new Phaser.Game({
+    type: Phaser.AUTO,
+    width: 400,
+    height: 780,
+    backgroundColor: '#0d0d1a',
+    scale: {
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+    },
+    scene: [
+      HomeScene,
+      StageSelectScene,
+      GameScene,
+      RankMatchScene,
+      RankResultScene,
+      SpeedScene,
+      SettingsScene,
+    ],
+  });
 });
 </script>
 </body>
